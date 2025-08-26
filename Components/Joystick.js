@@ -1,9 +1,32 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
-const Joystick = ({ onMove, size = 150, stickSize = 50, baseColor = '#333', stickColor = '#fff' }) => {
+const ESP32_IP = '192.168.0.161'; // Your ESP32's IP
+
+const Joystick = ({
+  size = 150,
+  stickSize = 50,
+  baseColor = '#333',
+  stickColor = '#fff',
+}) => {
   const [stickPosition, setStickPosition] = useState({ x: 0, y: 0 });
+
+  const sendToESP32 = payload => {
+  console.log("Sending:", payload);
+  
+  fetch(`http://${ESP32_IP}/move`,
+    {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+
+    body: JSON.stringify(payload),
+  })
+    .then(res => res.text())
+    .then(data => console.log('ESP32 response:', data))
+    .catch(err => console.log('ESP32 error:', err));
+};
+
 
   const handleGesture = ({ nativeEvent }) => {
     if (nativeEvent.state === State.ACTIVE) {
@@ -20,28 +43,35 @@ const Joystick = ({ onMove, size = 150, stickSize = 50, baseColor = '#333', stic
 
       setStickPosition({ x, y });
 
-      // Normalize values between -1 and 1 for device control
       const normalizedX = x / maxDistance;
       const normalizedY = y / maxDistance;
 
-      onMove?.({
+      const payload = {
         x: normalizedX,
         y: normalizedY,
-        distance: distance / maxDistance,
-        angle: Math.atan2(y, x) * (180 / Math.PI)
-      });
+      };
+
+      sendToESP32(payload);
     }
   };
 
   const handleGestureStateChange = ({ nativeEvent }) => {
-    if (nativeEvent.state === State.END || nativeEvent.state === State.CANCELLED) {
+    if (
+      nativeEvent.state === State.END ||
+      nativeEvent.state === State.CANCELLED
+    ) {
       setStickPosition({ x: 0, y: 0 });
-      onMove?.({ x: 0, y: 0, distance: 0, angle: 0 });
+      sendToESP32({ x: 0, y: 0 }); // stop
     }
   };
 
   return (
-    <View style={[styles.container, { width: size, height: size, backgroundColor: baseColor }]}>
+    <View
+      style={[
+        styles.container,
+        { width: size, height: size, backgroundColor: baseColor },
+      ]}
+    >
       <PanGestureHandler
         onGestureEvent={handleGesture}
         onHandlerStateChange={handleGestureStateChange}
@@ -53,8 +83,11 @@ const Joystick = ({ onMove, size = 150, stickSize = 50, baseColor = '#333', stic
               width: stickSize,
               height: stickSize,
               backgroundColor: stickColor,
-              transform: [{ translateX: stickPosition.x }, { translateY: stickPosition.y }]
-            }
+              transform: [
+                { translateX: stickPosition.x },
+                { translateY: stickPosition.y },
+              ],
+            },
           ]}
         />
       </PanGestureHandler>
