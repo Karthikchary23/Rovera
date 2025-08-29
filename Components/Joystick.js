@@ -1,32 +1,34 @@
+// Joystick.js
 import React, { useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
-
-const ESP32_IP = '192.168.0.161'; // Your ESP32's IP
 
 const Joystick = ({
   size = 150,
   stickSize = 50,
   baseColor = '#333',
   stickColor = '#fff',
+  ipAddress,   // <-- take ip dynamically
 }) => {
   const [stickPosition, setStickPosition] = useState({ x: 0, y: 0 });
 
   const sendToESP32 = payload => {
-  console.log("Sending:", payload);
-  
-  fetch(`http://${ESP32_IP}/move`,
-    {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    if (!ipAddress) {
+      console.log("❌ No IP Address set");
+      return;
+    }
 
-    body: JSON.stringify(payload),
-  })
-    .then(res => res.text())
-    .then(data => console.log('ESP32 response:', data))
-    .catch(err => console.log('ESP32 error:', err));
-};
+    console.log("📤 Sending:", payload);
 
+    fetch(`http://${ipAddress}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(res => res.text())
+      .then(data => console.log('✅ ESP32 response:', data))
+      .catch(err => console.log('❌ ESP32 error:', err));
+  };
 
   const handleGesture = ({ nativeEvent }) => {
     if (nativeEvent.state === State.ACTIVE) {
@@ -46,20 +48,12 @@ const Joystick = ({
       const normalizedX = x / maxDistance;
       const normalizedY = y / maxDistance;
 
-      const payload = {
-        x: normalizedX,
-        y: normalizedY,
-      };
-
-      sendToESP32(payload);
+      sendToESP32({ x: normalizedX, y: normalizedY });
     }
   };
 
   const handleGestureStateChange = ({ nativeEvent }) => {
-    if (
-      nativeEvent.state === State.END ||
-      nativeEvent.state === State.CANCELLED
-    ) {
+    if (nativeEvent.state === State.END || nativeEvent.state === State.CANCELLED) {
       setStickPosition({ x: 0, y: 0 });
       sendToESP32({ x: 0, y: 0 }); // stop
     }
