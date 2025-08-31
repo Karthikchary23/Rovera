@@ -1,6 +1,7 @@
 {
   "name": "Rovera",
   "displayName": "Rovera",
+  "orientation": "landscape",
   "extra": {
     "eas": {
       "projectId": "d2792ce0-4e1a-4cc3-9fa8-7e52d8231343"

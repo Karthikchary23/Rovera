@@ -1,170 +1,319 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from "react";
+import MapView, { Marker } from 'react-native-maps';
+
 import {
   View,
+  Text,
+  Alert,
   StyleSheet,
   SafeAreaView,
   Image,
-  Text,
   TouchableOpacity,
-  TextInput,
-} from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { MMKV } from 'react-native-mmkv';
-import Joystick from './Components/Joystick';
+  TextInput,Button
+} from "react-native";
+import Joystick from "./Components/Joystick";
 
-const storage = new MMKV();
-
-export default function CarControls() {
+export default function App() {
+  const [uniqueId] = useState("controller@123");
+  const ws = useRef(null);
+  const [isMapMain, setIsMapMain] = useState(false); // swap between camera & map
   const [isStarted, setIsStarted] = useState(false);
-  const [isMapFull, setIsMapFull] = useState(false);
-  const [ipAddress, setIpAddress] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
+   const [email, setEmail] = useState("lingojikarthikchary@gmail.com");
+  const [password, setPassword] = useState("123456789");
+  const [roverid, setRoverid] = useState("");
+
+  const initialRegion = {
+    latitude: 37.78825,
+    longitude: -122.4324,
+    latitudeDelta: 0.005,
+    longitudeDelta: 0.005,
+  };
 
   useEffect(() => {
-    const savedIp = storage.getString('ipAddress');
-    if (savedIp) setIpAddress(savedIp);
+    ws.current = new WebSocket("ws://192.168.0.111:3000");
+
+    ws.current.onopen = () => {
+      console.log("🔗 WebSocket connected");
+      ws.current.send(JSON.stringify({ type: "register", uniqueId }));
+    };
+
+    ws.current.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log("📩 Message:", data);
+
+      if (data.type === "connectedrover") {
+        Alert.alert("Success", data.message);
+      } else if (data.type === "connectedfailure") {
+        Alert.alert("Failed", data.message);
+      }
+    };
+
+    ws.current.onclose = () => console.log("❌ WebSocket closed");
+    ws.current.onerror = (err) => console.log("⚠️ WebSocket error:", err);
+
+    return () => {
+      ws.current?.close();
+    };
   }, []);
+
+  const sendCommand = (cmd) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(
+        JSON.stringify({
+          type: "send_instruction",
+          fromId: uniqueId,
+          command: cmd,
+        })
+      );
+      console.log("📤 Sent:", cmd);
+    }
+  };
+  const connectRover = () => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(
+        JSON.stringify({
+          type: "connectwithrover",
+          email,
+          password,
+          uniqueId,
+          roverid,
+        })
+      );
+      setRoverid("");
+    }
+  };
 
   const toggleStartStop = () => setIsStarted(!isStarted);
 
-  const handleIpChange = text => {
-    setIpAddress(text);
-    storage.set('ipAddress', text);
-  };
-
-  const handleConnect = () => {
-    if (ipAddress.trim() === '') {
-      alert('⚠️ Please enter an IP address');
-      return;
-    }
-    setIsConnected(true);
-    alert(`✅ Connected to ${ipAddress}`);
-  };
-
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView style={styles.container}>
-        
-        {/* Camera / Map */}
-        <View style={styles.background}>
-          {isMapFull ? (
-            <View style={styles.mapView}>
-              <Text>Map View</Text>
-              <Image source={require('./Images/maps.png')} style={styles.mapImage} />
-            </View>
-          ) : (
-            <View style={styles.cameraView}>
-              <Text style={styles.noCameraText}>Camera not found</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Navbar */}
-        <View style={styles.navBar}>
-          <Image source={require('./Images/Logo.jpg')} style={styles.logo} />
-          <View style={styles.roverStatus}>
-            <Image source={require('./Images/battery.png')} style={styles.batteryIcon} />
-          </View>
-        </View>
-
-        {/* Left Overlay */}
-        <View style={styles.overlayLeft}>
-          <TouchableOpacity style={styles.mapButton} onPress={() => setIsMapFull(!isMapFull)}>
-            <Text style={styles.mapButtonText}>{isMapFull ? 'Camera' : 'Map'}</Text>
-            {!isMapFull ? (
-              <View style={styles.mapPreview}>
-                <Image source={require('./Images/maps.png')} style={styles.mapImage} />
-              </View>
-            ) : (
-              <View style={styles.cameraPreview}>
-                <Text style={styles.previewText}>Camera</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          <View style={styles.controlButtons}>
-            <TouchableOpacity
-              style={[styles.buttonWrapper, isStarted && styles.buttonActive]}
-              onPress={toggleStartStop}
-            >
-              <Image source={require('./Images/start.png')} style={styles.icon} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.buttonWrapper, !isStarted && styles.buttonActive]}
-              onPress={toggleStartStop}
-            >
-              <Image source={require('./Images/stop.png')} style={styles.icon} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Speed & Direction */}
-        <View style={styles.speedDirection}>
-          <Text style={styles.speedText}>Speed: 0 km/h</Text>
-          <Text style={styles.directionText}>Direction: North...</Text>
-        </View>
-
-        {/* Right Overlay */}
-        {/* Right Overlay */}
-<View style={styles.overlayRight}>
-  {isConnected ? (
-    <>
-      <Joystick ipAddress={ipAddress} />
-      <TouchableOpacity
-        style={styles.changeIpButton}
-        onPress={() => setIsConnected(false)}  // disconnect and show input
+    <SafeAreaView style={styles.container}>
+     
+      <View style={styles.mainBox}>
+        {isMapMain ? (
+          <MapView
+        provider="google"
+        style={styles.map}
+        initialRegion={initialRegion}
+        showsUserLocation={true} 
       >
-        <Text style={styles.changeIpText}>Change IP</Text>
+        <Marker
+          coordinate={{ latitude: 37.78825, longitude: -122.4324 }}
+          title="Marker Title"
+          description="Marker Description"
+        />
+      </MapView>
+        ) : (
+          <View style={styles.cameraView}>
+            <Text style={styles.noCameraText}>📷 Camera Stream</Text>
+          </View>
+        )}
+      </View>
+
+     
+      <TouchableOpacity
+        style={styles.smallBox}
+        onPress={() => setIsMapMain(!isMapMain)}
+      >
+        {isMapMain ? (
+          <View style={styles.cameraViewSmall}>
+            <Text style={styles.noCameraText}>📷 Camera</Text>
+          </View>
+        ) : (
+          <MapView
+        style={styles.map}
+        initialRegion={initialRegion}
+        showsUserLocation={true} // shows your current device location
+      >
+        <Marker
+          coordinate={{ latitude: 37.78825, longitude: -122.4324 }}
+          title="Marker Title"
+          description="Marker Description"
+        />
+      </MapView>
+        )}
       </TouchableOpacity>
-    </>
-  ) : (
-    <>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter ESP32 IP"
-        placeholderTextColor="#888"
-        value={ipAddress}
-        onChangeText={handleIpChange}
-      />
-      <TouchableOpacity style={styles.connectButton} onPress={handleConnect}>
-        <Text style={styles.connectText}>Connect</Text>
-      </TouchableOpacity>
-    </>
-  )}
+
+      {/* Top Navbar */}
+      <View style={styles.navBar}>
+        <Image source={require("./Images/Logo.jpg")} style={styles.logo} />
+        <Image source={require("./Images/battery.png")} style={styles.batteryIcon} />
+      </View>
+
+     
+      <View style={styles.overlayLeft}>
+      
+        <View style={styles.controlButtons}>
+          <TouchableOpacity
+            style={[styles.buttonWrapper, isStarted && styles.buttonActive]}
+            onPress={toggleStartStop}
+          >
+            <Image source={require("./Images/start.png")} style={styles.icon} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.buttonWrapper, !isStarted && styles.buttonActive]}
+            onPress={toggleStartStop}
+          >
+            <Image source={require("./Images/stop.png")} style={styles.icon} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+     
+      <View style={styles.speedDirection}>
+        <Text style={styles.speedText}>Speed: 0 km/h</Text>
+        <Text style={styles.directionText}>Direction: North</Text>
+        <Text style={styles.label}>Rover ID:</Text>
+        
+      </View>
+      <View style={styles.roverConnect}>
+  <TextInput
+    style={styles.input}
+    placeholder="Enter Rover ID"
+    placeholderTextColor="#888"
+    value={roverid}
+    onChangeText={(value) => setRoverid(value)}
+  />
+  <Button title="Connect" onPress={connectRover} />
 </View>
 
-
-      </SafeAreaView>
-    </GestureHandlerRootView>
+     
+      <View style={styles.joystickWrapper}>
+        <Joystick sendCommand={sendCommand} />
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  background: { ...StyleSheet.absoluteFillObject },
-  cameraView: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'black', borderRadius: 10, margin: 10, padding: 20 },
-  mapView: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  navBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 60, paddingHorizontal: 10, backgroundColor: '#fff', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  mapImage: { width: '100%', height: '100%', resizeMode: 'cover', borderRadius: 10 },
-  logo: { width: 40, height: 40, borderRadius: 20, resizeMode: 'contain' },
-  roverStatus: { flexDirection: 'row', alignItems: 'center' },
-  batteryIcon: { width: 24, height: 24, resizeMode: 'contain' },
-  overlayLeft: { flex: 1, position: 'absolute', left: 10, bottom: 10, width: 150, top: 15, padding: 5, flexDirection: 'column', justifyContent: 'space-around' },
-  overlayRight: { position: 'absolute', right: 10, bottom: 10, width: 160, padding: 5, justifyContent: 'center', alignItems: 'center' },
-  mapButton: { backgroundColor: '#333', borderRadius: 8, padding: 5, alignItems: 'center', marginBottom: 10 },
-  mapButtonText: { color: '#fff', fontSize: 14, fontWeight: '500' },
-  mapPreview: { width: '100%', height: 80, backgroundColor: '#444', borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
-  previewText: { color: '#fff', fontSize: 12, fontWeight: '400' },
-  controlButtons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-  buttonWrapper: { borderRadius: 30, width: 60, height: 60, justifyContent: 'center', alignItems: 'center', backgroundColor: '#333', marginHorizontal: 10 },
-  buttonActive: { backgroundColor: '#e74c3c' },
-  icon: { width: 30, height: 30, resizeMode: 'contain' },
-  noCameraText: { color: '#fff', fontSize: 16, fontWeight: '500' },
-  speedDirection: { position: 'absolute', bottom: 80, left: '50%', transform: [{ translateX: -50 }], backgroundColor: 'rgba(0, 0, 0, 0.7)', padding: 5, borderRadius: 5, alignItems: 'center' },
-  speedText: { color: '#fff', fontSize: 14, fontWeight: '500' },
-  directionText: { color: '#fff', fontSize: 14, fontWeight: '500' },
-  cameraPreview: { width: '100%', height: 80, backgroundColor: '#444', borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
-  input: { width: '100%', height: 40, borderColor: '#555', borderWidth: 1, borderRadius: 6, paddingHorizontal: 10, color: '#fff', marginTop: 10, backgroundColor: '#222' },
-  connectButton: { backgroundColor: '#27ae60', marginTop: 10, padding: 10, borderRadius: 6, width: '100%', alignItems: 'center' },
-  connectText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  container: { flex: 1, backgroundColor: "#000" },
+
+  
+  mainBox: {
+    flex: 1,
+    margin: 10,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  mainImage: { width: "100%", height: "100%", resizeMode: "cover" },
+  cameraView: {
+    flex: 1,
+    backgroundColor: "#111",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  noCameraText: { color: "#fff", fontSize: 16, fontWeight: "500" },
+
+ 
+smallBox: {
+  position: "absolute",
+  left: 20,   
+  top: 80,
+  width: 120,
+  height: 90,
+  borderRadius: 8,
+  borderWidth: 2,
+  borderColor: "#fff",
+  overflow: "hidden",
+},
+
+  smallImage: { width: "100%", height: "100%", resizeMode: "cover" },
+  cameraViewSmall: {
+    flex: 1,
+    backgroundColor: "#222",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  
+  navBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    paddingHorizontal: 10,
+    backgroundColor: "#fff",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  logo: { width: 40, height: 40, borderRadius: 20, resizeMode: "contain" },
+  batteryIcon: { width: 28, height: 28, resizeMode: "contain" },
+
+  // Left Controls
+  overlayLeft: {
+    position: "absolute",
+    left: 10,
+    bottom: 20,
+    width: 150,
+    padding: 5,
+  },
+  controlButtons: { flexDirection: "row", justifyContent: "space-between" },
+  buttonWrapper: {
+    borderRadius: 30,
+    width: 60,
+    height: 60,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#333",
+    marginHorizontal: 5,
+  },
+  buttonActive: { backgroundColor: "#e74c3c" },
+  icon: { width: 30, height: 30, resizeMode: "contain" },
+
+  // Speed & Direction
+  speedDirection: {
+    position: "absolute",
+    bottom: 100,
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.7)",
+    padding: 8,
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  speedText: { color: "#fff", fontSize: 14, fontWeight: "500" },
+  directionText: { color: "#fff", fontSize: 14, fontWeight: "500" },
+
+  // Joystick
+  joystickWrapper: {
+    position: "absolute",
+    right: 20,
+    bottom: 20,
+  },
+  map: { width: "100%", height: "100%" },
+  roverConnect: {
+  position: "absolute",
+  bottom: 20, // closer to joystick
+  alignSelf: "center",
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "rgba(0,0,0,0.6)", // transparent black like speed panel
+  borderRadius: 30,
+  paddingHorizontal: 14,
+  paddingVertical: 8,
+  width:"50%",
+},
+
+input: {
+  flex: 1,
+  color: "#fff",
+  fontSize: 16,
+  paddingHorizontal: 10,
+},
+
+connectBtn: {
+  backgroundColor: "#1e90ff",
+  paddingVertical: 8,
+  paddingHorizontal: 16,
+  borderRadius: 20,
+  marginLeft: 8,
+},
+
+connectBtnText: {
+  color: "#fff",
+  fontSize: 16,
+  fontWeight: "600",
+},
+
+
 });

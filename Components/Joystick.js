@@ -1,105 +1,84 @@
-// Joystick.js
-import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import { useState, useRef } from "react";
+import { View, StyleSheet, PanResponder } from "react-native";
 
-const Joystick = ({
-  size = 150,
-  stickSize = 50,
-  baseColor = '#333',
-  stickColor = '#fff',
-  ipAddress,   // <-- take ip dynamically
-}) => {
-  const [stickPosition, setStickPosition] = useState({ x: 0, y: 0 });
+export default function Joystick({ sendCommand }) {
+  const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 });
+  const center = { x: 0, y: 0 };
+  const radius = 80;
+  const lastCommand = useRef(null);
 
-  const sendToESP32 = payload => {
-    if (!ipAddress) {
-      console.log("❌ No IP Address set");
-      return;
-    }
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (evt, gesture) => {
+        const dx = gesture.dx;
+        const dy = gesture.dy;
 
-    console.log("📤 Sending:", payload);
+        
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance <= radius) {
+          setJoystickPos({ x: dx, y: dy });
+        }
 
-    fetch(`http://${ipAddress}/move`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+        let cmd = null;
+        if (dy < -30 && Math.abs(dx) < 40) {
+          cmd = "forward";
+        } else if (dy > 30 && Math.abs(dx) < 40) {
+          cmd = "backward";
+        } else if (dx < -30 && Math.abs(dy) < 40) {
+          cmd = "left";
+        } else if (dx > 30 && Math.abs(dy) < 40) {
+          cmd = "right";
+        } else {
+          cmd = "stop";
+        }
+
+        // Only send if command changed
+        if (cmd !== lastCommand.current) {
+          sendCommand(cmd);
+          lastCommand.current = cmd;
+        }
+      },
+      onPanResponderRelease: () => {
+        setJoystickPos(center);
+        if (lastCommand.current !== "stop") {
+          sendCommand("stop");
+          lastCommand.current = "stop";
+        }
+      },
     })
-      .then(res => res.text())
-      .then(data => console.log('✅ ESP32 response:', data))
-      .catch(err => console.log('❌ ESP32 error:', err));
-  };
-
-  const handleGesture = ({ nativeEvent }) => {
-    if (nativeEvent.state === State.ACTIVE) {
-      const maxDistance = size / 2 - stickSize / 2;
-      let x = nativeEvent.translationX;
-      let y = nativeEvent.translationY;
-
-      const distance = Math.sqrt(x * x + y * y);
-      if (distance > maxDistance) {
-        const angle = Math.atan2(y, x);
-        x = maxDistance * Math.cos(angle);
-        y = maxDistance * Math.sin(angle);
-      }
-
-      setStickPosition({ x, y });
-
-      const normalizedX = x / maxDistance;
-      const normalizedY = y / maxDistance;
-
-      sendToESP32({ x: normalizedX, y: normalizedY });
-    }
-  };
-
-  const handleGestureStateChange = ({ nativeEvent }) => {
-    if (nativeEvent.state === State.END || nativeEvent.state === State.CANCELLED) {
-      setStickPosition({ x: 0, y: 0 });
-      sendToESP32({ x: 0, y: 0 }); // stop
-    }
-  };
+  ).current;
 
   return (
-    <View
-      style={[
-        styles.container,
-        { width: size, height: size, backgroundColor: baseColor },
-      ]}
-    >
-      <PanGestureHandler
-        onGestureEvent={handleGesture}
-        onHandlerStateChange={handleGestureStateChange}
-      >
-        <View
-          style={[
-            styles.stick,
-            {
-              width: stickSize,
-              height: stickSize,
-              backgroundColor: stickColor,
-              transform: [
-                { translateX: stickPosition.x },
-                { translateY: stickPosition.y },
-              ],
-            },
-          ]}
-        />
-      </PanGestureHandler>
+    <View style={styles.joystickOuter} {...panResponder.panHandlers}>
+      <View
+        style={[
+          styles.joystickInner,
+          {
+            transform: [
+              { translateX: joystickPos.x },
+              { translateY: joystickPos.y },
+            ],
+          },
+        ]}
+      />
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    borderRadius: 999,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
+  joystickOuter: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: "#444",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  stick: {
-    borderRadius: 999,
-    position: 'absolute',
+  joystickInner: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#888",
   },
 });
-
-export default Joystick;
