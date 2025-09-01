@@ -32,10 +32,13 @@ export default function App() {
   // separate refs for main & small maps
   const mainMapRef = useRef(null);
   const smallMapRef = useRef(null);
+  const [joystick, setJoystick] = useState({ x: 0, y: 0 });
 
   // WebSocket connection
   useEffect(() => {
-    ws.current = new WebSocket('ws://192.168.0.111:3000');
+    // ws.current = new WebSocket('ws://192.168.0.111:3000');
+     ws.current = new WebSocket("wss://roverabackend.onrender.com");
+
 
     ws.current.onopen = () => {
       console.log('🔗 WebSocket connected');
@@ -74,7 +77,31 @@ export default function App() {
       ws.current?.close();
     };
   }, []);
+const mapToPWM = (value) => {
+    const min = 1000, max = 2000;
+    return Math.round(min + ((value + 1) / 2) * (max - min));
+  };
+  useEffect(() => {
+    if (!ws.current) return;
+    const interval = setInterval(() => {
+      if (ws.current.readyState === WebSocket.OPEN) {
+        const throttle = mapToPWM(joystick.y); // forward/back
+        const steering = mapToPWM(joystick.x); // left/right
 
+        ws.current.send(
+          JSON.stringify({
+            type: "send_instruction",
+            fromId: uniqueId,
+            throttle,
+            steering,
+          })
+        );
+        console.log("📤 Sent:", throttle, steering);
+      }
+    }, 50); // 20Hz
+
+    return () => clearInterval(interval);
+  }, [joystick]);
   // animate map on GPS update
   useEffect(() => {
     if (mainMapRef.current && roverCoords.latitude && roverCoords.longitude) {
@@ -183,7 +210,7 @@ export default function App() {
         )}
       </TouchableOpacity>
 
-      {/* Top Navbar */}
+      
       <View style={styles.navBar}>
         <Image source={require('./Images/Logo.jpg')} style={styles.logo} />
         <Image
@@ -227,7 +254,10 @@ export default function App() {
       </View>
 
       <View style={styles.joystickWrapper}>
-        <Joystick sendCommand={sendCommand} />
+        {/* <Joystick sendCommand={sendCommand} /> */}
+        <Joystick onMove={setJoystick} />
+
+
       </View>
     </SafeAreaView>
   );

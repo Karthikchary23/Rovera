@@ -1,11 +1,9 @@
 import { useState, useRef } from "react";
 import { View, StyleSheet, PanResponder } from "react-native";
 
-export default function Joystick({ sendCommand }) {
+export default function Joystick({ onMove }) {
   const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 });
-  const center = { x: 0, y: 0 };
   const radius = 80;
-  const lastCommand = useRef(null);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -14,37 +12,19 @@ export default function Joystick({ sendCommand }) {
         const dx = gesture.dx;
         const dy = gesture.dy;
 
-        
         const distance = Math.sqrt(dx * dx + dy * dy);
         if (distance <= radius) {
           setJoystickPos({ x: dx, y: dy });
-        }
 
-        let cmd = null;
-        if (dy < -30 && Math.abs(dx) < 40) {
-          cmd = "forward";
-        } else if (dy > 30 && Math.abs(dx) < 40) {
-          cmd = "backward";
-        } else if (dx < -30 && Math.abs(dy) < 40) {
-          cmd = "left";
-        } else if (dx > 30 && Math.abs(dy) < 40) {
-          cmd = "right";
-        } else {
-          cmd = "stop";
-        }
-
-        // Only send if command changed
-        if (cmd !== lastCommand.current) {
-          sendCommand(cmd);
-          lastCommand.current = cmd;
+          
+          const nx = Math.max(-1, Math.min(1, dx / radius));
+          const ny = Math.max(-1, Math.min(1, -dy / radius)); // invert Y
+          onMove({ x: nx, y: ny });
         }
       },
       onPanResponderRelease: () => {
-        setJoystickPos(center);
-        if (lastCommand.current !== "stop") {
-          sendCommand("stop");
-          lastCommand.current = "stop";
-        }
+        setJoystickPos({ x: 0, y: 0 });
+        onMove({ x: 0, y: 0 }); // stop
       },
     })
   ).current;
