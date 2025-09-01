@@ -20,8 +20,8 @@ export default function App() {
   const [isMapMain, setIsMapMain] = useState(false);
   const [isStarted, setIsStarted] = useState(false);
 
-  const [email, setEmail] = useState('lingojikarthikchary@gmail.com');
-  const [password, setPassword] = useState('123456789');
+  const [email] = useState('lingojikarthikchary@gmail.com');
+  const [password] = useState('123456789');
   const [roverid, setRoverid] = useState('');
 
   const [roverCoords, setRoverCoords] = useState({
@@ -29,16 +29,13 @@ export default function App() {
     longitude: -122.4324,
   });
 
-  // separate refs for main & small maps
   const mainMapRef = useRef(null);
   const smallMapRef = useRef(null);
-  const [joystick, setJoystick] = useState({ x: 0, y: 0 });
+  const [joystick, setJoystick] = useState({ throttle: 1500, steering: 1500 });
 
   // WebSocket connection
   useEffect(() => {
-    // ws.current = new WebSocket('ws://192.168.0.111:3000');
-     ws.current = new WebSocket("wss://roverabackend.onrender.com");
-
+    ws.current = new WebSocket("wss://roverabackend.onrender.com");
 
     ws.current.onopen = () => {
       console.log('🔗 WebSocket connected');
@@ -51,14 +48,14 @@ export default function App() {
 
       if (data.type === 'connectedrover') {
         Alert.alert('Success', data.message);
+        setIsStarted(true); // enable joystick
+        setRoverid("")
       } else if (data.type === 'connectedfailure') {
         Alert.alert('Failed', data.message);
       }
 
       if (data.type === 'gps_update') {
         const { lat, lon } = data.data;
-
-        // Ensure they are numbers
         const latitude = parseFloat(lat);
         const longitude = parseFloat(lon);
 
@@ -77,32 +74,29 @@ export default function App() {
       ws.current?.close();
     };
   }, []);
-const mapToPWM = (value) => {
-    const min = 1000, max = 2000;
-    return Math.round(min + ((value + 1) / 2) * (max - min));
-  };
+
+  // Send joystick commands only when started
   useEffect(() => {
-    if (!ws.current) return;
+    if (!ws.current || !isStarted) return;
+
     const interval = setInterval(() => {
       if (ws.current.readyState === WebSocket.OPEN) {
-        const throttle = mapToPWM(joystick.y); // forward/back
-        const steering = mapToPWM(joystick.x); // left/right
-
         ws.current.send(
           JSON.stringify({
             type: "send_instruction",
             fromId: uniqueId,
-            throttle,
-            steering,
+            throttle: joystick.throttle,
+            steering: joystick.steering,
           })
         );
-        console.log("📤 Sent:", throttle, steering);
+        console.log("📤 Sent:", joystick.throttle, joystick.steering);
       }
     }, 50); // 20Hz
 
     return () => clearInterval(interval);
-  }, [joystick]);
-  // animate map on GPS update
+  }, [joystick, isStarted]);
+
+  // Animate map when GPS updates
   useEffect(() => {
     if (mainMapRef.current && roverCoords.latitude && roverCoords.longitude) {
       mainMapRef.current.animateToRegion(
@@ -116,7 +110,6 @@ const mapToPWM = (value) => {
     }
   }, [roverCoords]);
 
-  // send joystick/start-stop commands
   const sendCommand = cmd => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(
@@ -141,14 +134,18 @@ const mapToPWM = (value) => {
           roverid,
         }),
       );
-      setRoverid('');
     }
   };
 
-  const toggleStartStop = () => setIsStarted(!isStarted);
+  const toggleStartStop = () => {
+    const newStartedState = !isStarted;
+    setIsStarted(newStartedState);
+    sendCommand(newStartedState ? 'start' : 'stop');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Main map / camera */}
       <View style={styles.mainBox}>
         {isMapMain ? (
           <MapView
@@ -178,6 +175,7 @@ const mapToPWM = (value) => {
         )}
       </View>
 
+      {/* Small overlay (map/camera toggle) */}
       <TouchableOpacity
         style={styles.smallBox}
         onPress={() => setIsMapMain(!isMapMain)}
@@ -210,7 +208,7 @@ const mapToPWM = (value) => {
         )}
       </TouchableOpacity>
 
-      
+      {/* Top bar */}
       <View style={styles.navBar}>
         <Image source={require('./Images/Logo.jpg')} style={styles.logo} />
         <Image
@@ -219,6 +217,7 @@ const mapToPWM = (value) => {
         />
       </View>
 
+      {/* Start/Stop buttons */}
       <View style={styles.overlayLeft}>
         <View style={styles.controlButtons}>
           <TouchableOpacity
@@ -236,12 +235,14 @@ const mapToPWM = (value) => {
         </View>
       </View>
 
+      {/* Speed / Direction */}
       <View style={styles.speedDirection}>
         <Text style={styles.speedText}>Speed: 0 km/h</Text>
         <Text style={styles.directionText}>Direction: North</Text>
         <Text style={styles.label}>Rover ID:</Text>
       </View>
 
+      {/* Rover Connect */}
       <View style={styles.roverConnect}>
         <TextInput
           style={styles.input}
@@ -253,11 +254,9 @@ const mapToPWM = (value) => {
         <Button title="Connect" onPress={connectRover} />
       </View>
 
+      {/* Joystick */}
       <View style={styles.joystickWrapper}>
-        {/* <Joystick sendCommand={sendCommand} /> */}
         <Joystick onMove={setJoystick} />
-
-
       </View>
     </SafeAreaView>
   );
@@ -265,14 +264,12 @@ const mapToPWM = (value) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-
   mainBox: {
     flex: 1,
     margin: 10,
     borderRadius: 12,
     overflow: 'hidden',
   },
-  mainImage: { width: '100%', height: '100%', resizeMode: 'cover' },
   cameraView: {
     flex: 1,
     backgroundColor: '#111',
@@ -280,7 +277,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   noCameraText: { color: '#fff', fontSize: 16, fontWeight: '500' },
-
   smallBox: {
     position: 'absolute',
     left: 20,
@@ -292,15 +288,12 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
     overflow: 'hidden',
   },
-
-  smallImage: { width: '100%', height: '100%', resizeMode: 'cover' },
   cameraViewSmall: {
     flex: 1,
     backgroundColor: '#222',
     justifyContent: 'center',
     alignItems: 'center',
   },
-
   navBar: {
     position: 'absolute',
     top: 0,
@@ -315,8 +308,6 @@ const styles = StyleSheet.create({
   },
   logo: { width: 40, height: 40, borderRadius: 20, resizeMode: 'contain' },
   batteryIcon: { width: 28, height: 28, resizeMode: 'contain' },
-
-  // Left Controls
   overlayLeft: {
     position: 'absolute',
     left: 10,
@@ -336,8 +327,6 @@ const styles = StyleSheet.create({
   },
   buttonActive: { backgroundColor: '#e74c3c' },
   icon: { width: 30, height: 30, resizeMode: 'contain' },
-
-  // Speed & Direction
   speedDirection: {
     position: 'absolute',
     bottom: 100,
@@ -349,8 +338,6 @@ const styles = StyleSheet.create({
   },
   speedText: { color: '#fff', fontSize: 14, fontWeight: '500' },
   directionText: { color: '#fff', fontSize: 14, fontWeight: '500' },
-
-  // Joystick
   joystickWrapper: {
     position: 'absolute',
     right: 20,
@@ -359,35 +346,20 @@ const styles = StyleSheet.create({
   map: { width: '100%', height: '100%' },
   roverConnect: {
     position: 'absolute',
-    bottom: 20, // closer to joystick
+    bottom: 20,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)', // transparent black like speed panel
+    backgroundColor: 'rgba(0,0,0,0.6)',
     borderRadius: 30,
     paddingHorizontal: 14,
     paddingVertical: 8,
     width: '50%',
   },
-
   input: {
     flex: 1,
     color: '#fff',
     fontSize: 16,
     paddingHorizontal: 10,
-  },
-
-  connectBtn: {
-    backgroundColor: '#1e90ff',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginLeft: 8,
-  },
-
-  connectBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
