@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   TextInput,
   Button,
+  BackHandler,
 } from 'react-native';
 import Joystick from './Components/Joystick';
 
@@ -19,6 +20,7 @@ export default function App() {
 
   const [isMapMain, setIsMapMain] = useState(false);
   const [isStarted, setIsStarted] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 
   const [email] = useState('lingojikarthikchary@gmail.com');
   const [password] = useState('123456789');
@@ -48,10 +50,11 @@ export default function App() {
 
       if (data.type === 'connectedrover') {
         Alert.alert('Success', data.message);
-        setIsStarted(true); // enable joystick
-        setRoverid("")
+        setIsConnected(true);
+        setIsStarted(false); // only start when user clicks Start
       } else if (data.type === 'connectedfailure') {
         Alert.alert('Failed', data.message);
+        setIsConnected(false);
       }
 
       if (data.type === 'gps_update') {
@@ -70,8 +73,21 @@ export default function App() {
     ws.current.onclose = () => console.log('❌ WebSocket closed');
     ws.current.onerror = err => console.log('⚠️ WebSocket error:', err);
 
+    // Cleanup on app close
+    const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (ws.current) {
+        ws.current.send(JSON.stringify({ type: "send_instruction", fromId: uniqueId, command: "stop" }));
+        ws.current.close();
+      }
+      return false; // allow app to close
+    });
+
     return () => {
-      ws.current?.close();
+      backHandler.remove();
+      if (ws.current) {
+        ws.current.send(JSON.stringify({ type: "send_instruction", fromId: uniqueId, command: "stop" }));
+        ws.current.close();
+      }
     };
   }, []);
 
@@ -138,6 +154,10 @@ export default function App() {
   };
 
   const toggleStartStop = () => {
+    if (!isConnected) {
+      Alert.alert("Not Connected", "Please connect to a rover first.");
+      return;
+    }
     const newStartedState = !isStarted;
     setIsStarted(newStartedState);
     sendCommand(newStartedState ? 'start' : 'stop');
@@ -175,7 +195,7 @@ export default function App() {
         )}
       </View>
 
-      {/* Small overlay (map/camera toggle) */}
+      {/* Small overlay toggle */}
       <TouchableOpacity
         style={styles.smallBox}
         onPress={() => setIsMapMain(!isMapMain)}
