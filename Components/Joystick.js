@@ -1,11 +1,10 @@
-import React, { useState, useRef } from "react";
-import { View, StyleSheet, PanResponder, Text } from "react-native";
+import React, { useState, useRef } from 'react';
+import { View, StyleSheet, PanResponder } from 'react-native';
 
 export default function Joystick({ onMove }) {
   const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 });
-  const [directionText, setDirectionText] = useState("");
-  const radius = 80; // max joystick travel
-  const stepSize = radius / 5; // divide circle into 5 rings
+  const radius = 80;
+  const stepSize = radius / 5;
 
   const getAngle = (dx, dy) => {
     const angleRad = Math.atan2(dy, dx);
@@ -14,10 +13,7 @@ export default function Joystick({ onMove }) {
     return (angleDeg - 90 + 360) % 360;
   };
 
-  const getStage = (dist) => {
-    // distance from center mapped into 0–5 steps
-    return Math.min(5, Math.floor(dist / stepSize));
-  };
+  const getStage = dist => Math.min(5, Math.floor(dist / stepSize));
 
   const panResponder = useRef(
     PanResponder.create({
@@ -33,69 +29,89 @@ export default function Joystick({ onMove }) {
         setJoystickPos({ x: clampedX, y: clampedY });
 
         const angle = getAngle(dx, -dy);
-        const stage = getStage(distance); // 0 to 5
+        const stage = getStage(distance);
 
         let leftMotor = 1500;
         let rightMotor = 1500;
-        let dir = "Neutral";
 
         if (stage > 0) {
           if (angle >= 80 && angle <= 100) {
-            // Forward
+           
+             // Spin Left
+              leftMotor = 1500 + stage * 100;
+            rightMotor = 1500 - stage * 100;
+            
+            // console.log('spin left', leftMotor, rightMotor);
+           
+          } else if (angle >= 260 && angle <= 280) {
+             
+             // Spin Right
+             leftMotor = 1500 - stage * 100;
+            rightMotor = 1500 + stage * 100;
+           
+            // console.log('spin right', leftMotor, rightMotor);
+
+           
+          } else if (angle <= 10 || angle >= 350) {
+           
+             // Forward
             leftMotor = 1500 + stage * 100;
             rightMotor = 1500 + stage * 100;
-            dir = `Forward ${stage}`;
-          } else if (angle >= 260 && angle <= 280) {
+            // console.log('forward', leftMotor, rightMotor);
+          } else if (angle >= 170 && angle <= 190) {
+            
             // Backward
             leftMotor = 1500 - stage * 100;
             rightMotor = 1500 - stage * 100;
-            dir = `Backward ${stage}`;
-          } else if (angle <= 10 || angle >= 350) {
-            // Spin Right
-            leftMotor = 1500 + stage * 100;
-            rightMotor = 1500 - stage * 100;
-            dir = `Spin Right ${stage}`;
-          } else if (angle >= 170 && angle <= 190) {
-            // Spin Left
-            leftMotor = 1500 - stage * 100;
-            rightMotor = 1500 + stage * 100;
-            dir = `Spin Left ${stage}`;
+            // console.log('back', leftMotor, rightMotor);
           } else if (angle > 10 && angle < 80) {
-            // Forward-Right
+             // Forward-Right
             leftMotor = 1500 + stage * 100;
-            dir = `Forward-Right ${stage}`;
+            rightMotor = 1500;
+            // console.log('forward-right', leftMotor, rightMotor);
+             
+           
           } else if (angle > 100 && angle < 170) {
-            // Forward-Left
-            rightMotor = 1500 + stage * 100;
-            dir = `Forward-Left ${stage}`;
-          } else if (angle > 180 && angle < 270) {
-            // Backward-Left
-            rightMotor = 1500 - stage * 100;
-            dir = `Backward-Left ${stage}`;
-          } else if (angle > 270 && angle < 360) {
-            // Backward-Right
+           
+            // Backward-left
             leftMotor = 1500 - stage * 100;
-            dir = `Backward-Right ${stage}`;
+            rightMotor = 1500;
+            // console.log('back-left', leftMotor, rightMotor);
+           
+           
+          } else if (angle > 180 && angle < 270) {
+             
+             
+             // Backward-right
+            rightMotor = 1500 - stage * 100;
+            leftMotor = 1500;
+            // console.log('back-right', leftMotor, rightMotor);
           }
+          else if (angle > 270 && angle < 360) {
+          
+             // Forward-Left
+            rightMotor = 1500 + stage * 100;
+            leftMotor = 1500;
+           // console.log('forward-left', leftMotor, rightMotor);
+          } 
+            
         }
 
-        setDirectionText(dir);
+        // // ✅ FIX: Invert Right Motor to match hardware
+        // rightMotor = 3000 - rightMotor;
+
         onMove({ throttle: leftMotor, steering: rightMotor });
       },
       onPanResponderRelease: () => {
         setJoystickPos({ x: 0, y: 0 });
-        setDirectionText("Neutral");
         onMove({ throttle: 1500, steering: 1500 });
       },
-    })
+    }),
   ).current;
 
   return (
     <View style={styles.container}>
       <View style={styles.joystickOuter} {...panResponder.panHandlers}>
-        {/* {directionText !== "" && (
-          <Text style={styles.directionText}>{directionText}</Text>
-        )} */}
         <View
           style={[
             styles.joystickInner,
@@ -113,26 +129,19 @@ export default function Joystick({ onMove }) {
 }
 
 const styles = StyleSheet.create({
-  container: { alignItems: "center", justifyContent: "center", marginTop: 20 },
+  container: { alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   joystickOuter: {
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: "#444",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: '#444',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   joystickInner: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#888",
-  },
-  directionText: {
-    position: "absolute",
-    top: 10,
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
+    backgroundColor: '#888',
   },
 });
