@@ -13,6 +13,7 @@ import {
   BackHandler,
 } from 'react-native';
 import Joystick from './Components/Joystick';
+import Mode from './Components/Mode';
 
 export default function App() {
   const [uniqueId] = useState('controller@123');
@@ -25,10 +26,11 @@ export default function App() {
   const [email] = useState('lingojikarthikchary@gmail.com');
   const [password] = useState('123456789');
   const [roverid, setRoverid] = useState('');
+  const[mode,setmode]=useState('mobile');
 
   const [roverCoords, setRoverCoords] = useState({
-    latitude: 37.78825,
-    longitude: -122.4324,
+    latitude: 17.385044,
+    longitude: 78.486671,
   });
 
   const mainMapRef = useRef(null);
@@ -52,6 +54,7 @@ export default function App() {
         Alert.alert('Success', data.message);
         setIsConnected(true);
         setIsStarted(false); // only start when user clicks Start
+         setRoverid("");
       } else if (data.type === 'connectedfailure') {
         Alert.alert('Failed', data.message);
         setIsConnected(false);
@@ -79,7 +82,7 @@ export default function App() {
         ws.current.send(JSON.stringify({ type: "send_instruction", fromId: uniqueId, command: "stop" }));
         ws.current.close();
       }
-      return false; // allow app to close
+      return false; 
     });
 
     return () => {
@@ -93,7 +96,7 @@ export default function App() {
 
   // Send joystick commands only when started
   useEffect(() => {
-    if (!ws.current || !isStarted) return;
+    if (!ws.current || !isStarted || mode != "mobile") return;
 
     const interval = setInterval(() => {
       if (ws.current.readyState === WebSocket.OPEN) {
@@ -125,7 +128,28 @@ export default function App() {
       );
     }
   }, [roverCoords]);
+  //Mode
+  useEffect(() => {
+  if (ws.current && ws.current.readyState === WebSocket.OPEN && !isStarted) {
+    ws.current.send(
+      JSON.stringify({
+        type: "mode_change",
+        fromId: uniqueId,
+        mode: mode,
+      })
+    );
+    console.log("📤 Sent mode change:", mode);
+  }
+  else{
+    if(isStarted)
+    {
+      Alert.alert("Turn off the start Button");
+    setmode("mobile");
 
+    }
+    
+  }
+}, [mode])
   const sendCommand = cmd => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(
@@ -156,6 +180,12 @@ export default function App() {
   const toggleStartStop = () => {
     if (!isConnected) {
       Alert.alert("Not Connected", "Please connect to a rover first.");
+     
+      return;
+    }
+    if(mode!=="mobile")
+    {
+      Alert.alert("Invalid Mode", "Please select 'mobile' mode to start.");
       return;
     }
     const newStartedState = !isStarted;
@@ -166,7 +196,8 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Main map / camera */}
-      <View style={styles.mainBox}>
+      
+        <View style={styles.mainBox}>
         {isMapMain ? (
           <MapView
             ref={mainMapRef}
@@ -194,6 +225,14 @@ export default function App() {
           </View>
         )}
       </View>
+      <View style={{position:'absolute',top:100,right:10,zIndex:1}}>
+        <Mode selected={mode} onChange={setmode} />
+
+      </View>
+      
+
+      
+      
 
       {/* Small overlay toggle */}
       <TouchableOpacity
@@ -258,6 +297,9 @@ export default function App() {
       {/* Speed / Direction */}
       <View style={styles.speedDirection}>
         <Text style={styles.speedText}>Speed: 0 km/h</Text>
+                <Text style={styles.speedText}>{mode}</Text>
+
+
         <Text style={styles.directionText}>Direction: North</Text>
         <Text style={styles.label}>Rover ID:</Text>
       </View>

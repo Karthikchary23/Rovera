@@ -3,6 +3,7 @@ import { View, StyleSheet, PanResponder } from 'react-native';
 
 export default function Joystick({ onMove }) {
   const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 });
+  const [speed,setspeed]=useState(0);
   const radius = 80;
   const stepSize = radius / 5;
 
@@ -38,18 +39,18 @@ export default function Joystick({ onMove }) {
           if (angle >= 80 && angle <= 100) {
            
              // Spin Left
-              leftMotor = 1500 + stage * 100;
-            rightMotor = 1500 - stage * 100;
+              leftMotor = 1500 - stage * 100;
+            rightMotor = 1500 + stage * 100;
             
-            // console.log('spin left', leftMotor, rightMotor);
+            console.log('spin left', leftMotor, rightMotor);
            
           } else if (angle >= 260 && angle <= 280) {
              
              // Spin Right
-             leftMotor = 1500 - stage * 100;
-            rightMotor = 1500 + stage * 100;
+             leftMotor = 1500 + stage * 100;
+            rightMotor = 1500 - stage * 100;
            
-            // console.log('spin right', leftMotor, rightMotor);
+            console.log('spin right', leftMotor, rightMotor);
 
            
           } else if (angle <= 10 || angle >= 350) {
@@ -57,48 +58,51 @@ export default function Joystick({ onMove }) {
              // Forward
             leftMotor = 1500 + stage * 100;
             rightMotor = 1500 + stage * 100;
-            // console.log('forward', leftMotor, rightMotor);
+            console.log('forward', leftMotor, rightMotor);
           } else if (angle >= 170 && angle <= 190) {
             
             // Backward
             leftMotor = 1500 - stage * 100;
             rightMotor = 1500 - stage * 100;
-            // console.log('back', leftMotor, rightMotor);
+            console.log('back', leftMotor, rightMotor);
           } else if (angle > 10 && angle < 80) {
-             // Forward-Right
-            leftMotor = 1500 + stage * 100;
-            rightMotor = 1500;
-            // console.log('forward-right', leftMotor, rightMotor);
+            
+            // Forward-Left
+            rightMotor = 1500 + stage * 100;
+            leftMotor = 1500;
+           console.log('forward-left', leftMotor, rightMotor);
              
            
           } else if (angle > 100 && angle < 170) {
+             // Backward-left
+            
+            rightMotor = 1500 - stage * 100;
+            leftMotor = 1500;
+            console.log('back-left', leftMotor, rightMotor);
            
-            // Backward-left
-            leftMotor = 1500 - stage * 100;
-            rightMotor = 1500;
-            // console.log('back-left', leftMotor, rightMotor);
+           
            
            
           } else if (angle > 180 && angle < 270) {
+              // Backward-right
+            leftMotor = 1500 - stage * 100;
+            rightMotor = 1500;
+            console.log('back-right', leftMotor, rightMotor);
              
-             
-             // Backward-right
-            rightMotor = 1500 - stage * 100;
-            leftMotor = 1500;
-            // console.log('back-right', leftMotor, rightMotor);
+            
           }
           else if (angle > 270 && angle < 360) {
+             // Forward-Right
+            leftMotor = 1500 + stage * 100;
+            rightMotor = 1500;
+            console.log('forward-right', leftMotor, rightMotor);
           
-             // Forward-Left
-            rightMotor = 1500 + stage * 100;
-            leftMotor = 1500;
-           // console.log('forward-left', leftMotor, rightMotor);
+             
           } 
             
         }
 
-        // // ✅ FIX: Invert Right Motor to match hardware
-        // rightMotor = 3000 - rightMotor;
+        
 
         onMove({ throttle: leftMotor, steering: rightMotor });
       },
